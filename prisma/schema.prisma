@@ -1,0 +1,153 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model Account {
+  id            String   @id @default(cuid())
+  username      String   @unique
+  accessToken   String
+  userId        String   @unique
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  posts         Post[]
+  analytics     PostAnalytics[]
+  analyzedPosts AnalyzedPost[]
+  autoPostRules AutoPostRule[]
+}
+
+model Post {
+  id              String      @id @default(cuid())
+  content         String
+  threadPosts     String?     // JSON array of thread posts
+  status          PostStatus  @default(DRAFT)
+  scheduledFor    DateTime?
+  publishedAt     DateTime?
+  threadsPostId   String?     @unique
+  parentPostId    String?
+  accountId       String
+
+  account         Account     @relation(fields: [accountId], references: [id], onDelete: Cascade)
+  analytics       PostAnalytics?
+  parentPost      Post?       @relation("ThreadPosts", fields: [parentPostId], references: [id])
+  childPosts      Post[]      @relation("ThreadPosts")
+
+  createdAt       DateTime    @default(now())
+  updatedAt       DateTime    @updatedAt
+
+  @@index([accountId])
+  @@index([scheduledFor])
+  @@index([status])
+}
+
+enum PostStatus {
+  DRAFT
+  APPROVED
+  SCHEDULED
+  PUBLISHED
+  FAILED
+}
+
+model PostAnalytics {
+  id          String   @id @default(cuid())
+  postId      String   @unique
+  accountId   String
+
+  likes       Int      @default(0)
+  replies     Int      @default(0)
+  reposts     Int      @default(0)
+  quotes      Int      @default(0)
+  views       Int      @default(0)
+
+  fetchedAt   DateTime @default(now())
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  post        Post     @relation(fields: [postId], references: [id], onDelete: Cascade)
+  account     Account  @relation(fields: [accountId], references: [id], onDelete: Cascade)
+
+  @@index([accountId])
+  @@index([fetchedAt])
+}
+
+model AnalyzedPost {
+  id          String   @id @default(cuid())
+  accountId   String
+  sourceUrl   String
+
+  content     String
+  elements    String   // JSON: tone, topics, hashtags, length, structure
+
+  createdAt   DateTime @default(now())
+
+  account     Account  @relation(fields: [accountId], references: [id], onDelete: Cascade)
+
+  @@index([accountId])
+}
+
+model Settings {
+  id              String   @id @default(cuid())
+  accountId       String?  @unique
+  theme           Theme    @default(LIGHT)
+  defaultSchedule String?  // JSON: preferred posting times
+  basePrompt      String?  // 基本プロンプト
+
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+}
+
+enum Theme {
+  LIGHT
+  DARK
+}
+
+model AutoPostRule {
+  id              String           @id @default(cuid())
+  accountId       String
+  name            String
+  description     String?
+
+  // ルールの設定
+  enabled         Boolean          @default(true)
+  frequency       PostFrequency    @default(DAILY)
+  customSchedule  String?          // JSON: カスタムスケジュール設定
+
+  // 投稿生成設定
+  autoGenerate    Boolean          @default(true)
+  topic           String?          // 投稿トピック
+  customPrompt    String?          // カスタムプロンプト
+  isThread        Boolean          @default(false)
+  aiModel         String           @default("gpt-4")
+
+  // 時間設定
+  scheduledTimes  String           // JSON配列: ["09:00", "15:00", "21:00"]
+  timezone        String           @default("Asia/Tokyo")
+
+  // 実行制御
+  lastRunAt       DateTime?
+  nextRunAt       DateTime?
+  runCount        Int              @default(0)
+  maxRuns         Int?             // 最大実行回数（nullは無制限）
+
+  account         Account          @relation(fields: [accountId], references: [id], onDelete: Cascade)
+
+  createdAt       DateTime         @default(now())
+  updatedAt       DateTime         @updatedAt
+
+  @@index([accountId])
+  @@index([enabled])
+  @@index([nextRunAt])
+}
+
+enum PostFrequency {
+  HOURLY
+  DAILY
+  WEEKLY
+  MONTHLY
+  CUSTOM
+}
