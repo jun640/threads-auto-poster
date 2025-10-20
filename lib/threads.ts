@@ -147,9 +147,20 @@ export async function exchangeCodeForToken(code: string): Promise<{
 }
 
 export function getAuthorizationUrl(): string {
+  const appId = process.env.THREADS_APP_ID
+  const redirectUri = process.env.THREADS_REDIRECT_URI
+
+  if (!appId || !redirectUri) {
+    console.error('Missing environment variables:', {
+      THREADS_APP_ID: appId ? 'set' : 'missing',
+      THREADS_REDIRECT_URI: redirectUri ? 'set' : 'missing',
+    })
+    throw new Error('Missing required environment variables for Threads OAuth')
+  }
+
   const params = new URLSearchParams({
-    client_id: process.env.THREADS_APP_ID!,
-    redirect_uri: process.env.THREADS_REDIRECT_URI!,
+    client_id: appId,
+    redirect_uri: redirectUri,
     scope: 'threads_basic,threads_content_publish,threads_manage_insights,threads_manage_replies',
     response_type: 'code',
   })
